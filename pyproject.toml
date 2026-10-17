@@ -1,0 +1,40 @@
+[project]
+name = "jp-morgraph"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Corentin Ghestem", email = "corentinghestem@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "finnhub-python>=2.4.29",
+    "fredapi>=0.5.2",
+    "langchain>=1.4.6",
+    "langchain-anthropic>=1.7.6",
+    "langgraph>=1.2.16",
+    "langgraph-checkpoint-sqlite>=3.1.2",
+    "langsmith>=0.14.11",
+    "pandas>=3.0.6",
+    "plotly>=7.1.0",
+    "pyarrow>=26.0.0",
+    "pydantic>=2.14.1",
+    "python-dotenv>=1.2.4",
+    "streamlit>=1.66.0",
+    "yfinance>=1.7.0",
+]
+
+[project.scripts]
+jp-morgraph = "jp_morgraph:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "langgraph-cli[inmem]>=0.4.36",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
