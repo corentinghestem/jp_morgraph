@@ -45,6 +45,8 @@ DAILY_SERIES = {"DGS10", "VIXCLS"}
 NEWS_MAX_ITEMS = 5
 NEWS_WINDOW_DAYS = 14
 HEADLINE_MAX_CHARS = 140
+NEWS_FETCH_WINDOW_DAYS = 3  # ~150-240 news par fenêtre pour un gros titre : rarement à redécouper
+NEWS_API_CAP = 240  # au-delà, la réponse Finnhub est tronquée (~250 news max par appel)
 
 
 # --------------------------------------------------------------------------- #
@@ -282,9 +284,12 @@ def assert_no_future(snap: dict, as_of: str) -> None:
     def walk(node, path=""):
         if isinstance(node, dict):
             for k, v in node.items():
-                if isinstance(v, str) and ("date" in k or k == "available_from"):
-                    if pd.Timestamp(v) > limit:
-                        raise AssertionError(f"Fuite du futur : {path}/{k} = {v} > {as_of}")
+                if (
+                    isinstance(v, str)
+                    and ("date" in k or k == "available_from")
+                    and pd.Timestamp(v) > limit
+                ):
+                    raise AssertionError(f"Fuite du futur : {path}/{k} = {v} > {as_of}")
                 walk(v, f"{path}/{k}")
         elif isinstance(node, list):
             for i, v in enumerate(node):
@@ -337,8 +342,23 @@ def refresh_prices(tickers: list[str], directory: str | Path = "data", years: in
     return prices
 
 
+def _company_news(client, ticker: str, begin: pd.Timestamp, end: pd.Timestamp) -> list[dict]:
+    """News de [begin, end] (jours inclus). Finnhub ne renvoie que les ~250 plus récentes
+    par appel : si la réponse est pleine, on coupe la fenêtre en deux et on recommence."""
+    items = client.company_news(
+        ticker, _from=begin.strftime("%Y-%m-%d"), to=end.strftime("%Y-%m-%d")
+    )
+    time.sleep(1.1)  # ~60 appels/min en offre gratuite
+    if len(items) < NEWS_API_CAP or begin >= end:
+        return items
+    mid = begin + pd.Timedelta(days=(end - begin).days // 2)
+    return _company_news(client, ticker, begin, mid) + _company_news(
+        client, ticker, mid + pd.Timedelta(days=1), end
+    )
+
+
 def refresh_news(tickers: list[str], directory: str | Path = "data", days_back: int = 365) -> pd.DataFrame:
-    """News Finnhub par fenêtres de 30 jours. Le cache s'enrichit à chaque exécution."""
+    """News Finnhub par fenêtres de NEWS_FETCH_WINDOW_DAYS jours. Le cache s'enrichit à chaque exécution."""
     import finnhub
 
     key = os.environ.get("FINNHUB_API_KEY")
@@ -355,10 +375,8 @@ def refresh_news(tickers: list[str], directory: str | Path = "data", days_back: 
     for t in tickers:
         end = today
         while end > today - pd.Timedelta(days=days_back):
-            begin = end - pd.Timedelta(days=30)
-            items = client.company_news(
-                t, _from=begin.strftime("%Y-%m-%d"), to=end.strftime("%Y-%m-%d")
-            )
+            begin = end - pd.Timedelta(days=NEWS_FETCH_WINDOW_DAYS - 1)
+            items = _company_news(client, t, begin, end)
             for it in items:
                 if it.get("datetime") and it.get("headline"):
                     rows.append(
@@ -369,8 +387,7 @@ def refresh_news(tickers: list[str], directory: str | Path = "data", days_back: 
                             "source": it.get("source", ""),
                         }
                     )
-            end = begin
-            time.sleep(1.1)  # ~60 appels/min en offre gratuite
+            end = begin - pd.Timedelta(days=1)
     new = pd.DataFrame(rows) if rows else _empty_news()
     news = (
         pd.concat([old, new], ignore_index=True)
@@ -429,14 +446,11 @@ def refresh_macro(directory: str | Path = "data", years: int = 3) -> dict[str, p
     return out
 
 
-# --------------------------------------------------------------------------- #
-# Ligne de commande
-# --------------------------------------------------------------------------- #
+
 def _default_tickers() -> list[str]:
-    """Titres du projet, lus dans config.py (seul endroit où data.py touche à la config)."""
     from jp_morgraph.config import tickers
 
-    return [t for t in tickers if t != BENCHMARK]  # le SPY est ajouté à part comme repère
+    return [t for t in tickers if t != BENCHMARK]
 
 
 def _main() -> None:
@@ -446,6 +460,7 @@ def _main() -> None:
     r = sub.add_parser("refresh", help="Télécharge prix, news et macro vers data/")
     r.add_argument("--tickers", nargs="+", help="par défaut : `tickers` de config.py")
     r.add_argument("--dir", default="data")
+    r.add_argument("--days-back", type=int, default=365, help="historique de news à récupérer")
 
     s = sub.add_parser("snapshot", help="Affiche le snapshot à une date (lecture du cache)")
     s.add_argument("--as-of", required=True)
@@ -459,7 +474,7 @@ def _main() -> None:
 
         load_dotenv()
         refresh_prices(tickers, args.dir)
-        refresh_news(tickers, args.dir)
+        refresh_news(tickers, args.dir, days_back=args.days_back)
         refresh_macro(args.dir)
         print("Cache mis à jour dans", args.dir)
     else:

@@ -1,7 +1,7 @@
 [project]
 name = "jp-morgraph"
 version = "0.1.0"
-description = "Add your description here"
+description = "Salle de marché multi-agents (LangGraph)"
 readme = "README.md"
 authors = [
     { name = "Corentin Ghestem", email = "corentinghestem@gmail.com" }
@@ -23,9 +23,6 @@ dependencies = [
     "streamlit>=1.66.0",
     "yfinance>=1.7.0",
 ]
-
-[project.scripts]
-jp-morgraph = "jp_morgraph:main"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]

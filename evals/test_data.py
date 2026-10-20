@@ -151,7 +151,6 @@ def test_macro_is_only_visible_once_published(store):
 
 def test_macro_revision_is_used_only_after_its_release(store):
     cpi = store.macro["CPIAUCSL"]
-    revised_date = cpi.sort_values("available_from").iloc[:-1]
     dup = cpi[cpi.duplicated("date", keep=False)].sort_values("available_from")
     first, second = dup.iloc[0], dup.iloc[1]
     assert second["value"] != first["value"]

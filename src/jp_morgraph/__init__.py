@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from jp-morgraph!")
+"""jp_morgraph : salle de marché multi-agents (LangGraph)."""

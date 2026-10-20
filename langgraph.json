@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": { 
-    "technical": "./src/jp_morgraph/agents/technical.py:graph"
+    "phase4": "./src/jp_morgraph/phase4_graph.py:graph"
   },
   "env": ".env"
 }

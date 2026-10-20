@@ -1,1 +1,1 @@
-tickers = ["AAPL", "MSFT","JPM"]
+tickers = ["AAPL", "MSFT", "JPM"]

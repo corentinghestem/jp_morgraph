@@ -1,8 +1,10 @@
 # src/jp_morgraph/state.py
 from operator import add
 from typing import Annotated, Literal
+
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
+
 
 class AnalystReport(BaseModel):
     analyst: Literal["technique", "news_macro"]
