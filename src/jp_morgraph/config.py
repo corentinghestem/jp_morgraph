@@ -1,1 +1,10 @@
-tickers = ["AAPL", "MSFT","JPM"]
+tickers = ["AAPL", "QBTS", "JPM"]
+
+CAPITAL = 100_000.0
+MAX_WEIGHT = 0.40
+MAX_EXPOSURE = 1.0
+
+SLIPPAGE_BPS = 5
+FEE_RATE = 0.0005
+
+MAX_RISK_RETRIES = 2

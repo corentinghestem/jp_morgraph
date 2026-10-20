@@ -1,8 +1,3 @@
-"""Tests du Data Desk : aucune fuite du futur, aucun réseau, résultats reproductibles.
-
-Les données sont synthétiques : les tests ne nécessitent ni clé API ni connexion.
-"""
-
 import copy
 import json
 import socket
@@ -32,7 +27,6 @@ def _make_store(seed: int = 0) -> MarketStore:
         columns=cols,
     )
 
-    # une trentaine par titre et par trimestre, à des heures variées (UTC).
     rows = []
     for t in UNIVERSE:
         stamps = pd.to_datetime(
@@ -48,8 +42,6 @@ def _make_store(seed: int = 0) -> MarketStore:
             rows.append({"ticker": t, "published_at": ts, "headline": f"{t} titre {i}", "source": "Test"})
     news = pd.DataFrame(rows).sort_values("published_at").reset_index(drop=True)
 
-    # Macro : CPI mensuel publié ~45 jours après le mois, avec une révision ;
-    # taux 10 ans quotidien publié J+1.
     months = pd.date_range("2023-01-01", "2026-09-01", freq="MS")
     cpi = pd.DataFrame(
         {
@@ -60,7 +52,7 @@ def _make_store(seed: int = 0) -> MarketStore:
     )
     rev = cpi.iloc[[-5]].copy()
     rev["available_from"] = rev["available_from"] + pd.Timedelta(days=30)
-    rev["value"] += 5.0  # révision à la hausse, connue un mois plus tard
+    rev["value"] += 5.0
     cpi = pd.concat([cpi, rev], ignore_index=True)
 
     dgs = pd.DataFrame(
@@ -80,7 +72,6 @@ def fridays() -> list[str]:
 
 
 def _corrupt_future(store: MarketStore, as_of: str) -> MarketStore:
-    """Copie du store où tout ce qui est postérieur à as_of est remplacé par des valeurs absurdes."""
     day = pd.Timestamp(as_of)
     s = copy.deepcopy(store)
     s.prices.loc[s.prices.index > day] = 1e9
@@ -90,18 +81,14 @@ def _corrupt_future(store: MarketStore, as_of: str) -> MarketStore:
     return s
 
 
-# --------------------------------------------------------------------------- #
-# Tests anti-fuite
-# --------------------------------------------------------------------------- #
 def test_20_random_dates_have_no_future_data(store, fridays):
     rng = np.random.default_rng(42)
     for as_of in rng.choice(fridays, size=20, replace=False):
         snap = snapshot(str(as_of), store, UNIVERSE)
-        assert_no_future(snap, str(as_of))  # lève en cas de fuite
+        assert_no_future(snap, str(as_of))
 
 
 def test_changing_the_future_does_not_change_the_snapshot(store, fridays):
-    """Le test le plus parlant : on saccage tout ce qui suit as_of, rien ne doit bouger."""
     rng = np.random.default_rng(7)
     for as_of in rng.choice(fridays, size=10, replace=False):
         clean = snapshot(str(as_of), store, UNIVERSE)
@@ -118,7 +105,7 @@ def test_assert_no_future_catches_a_real_leak():
 def test_price_boundary_is_inclusive(store):
     as_of = "2026-10-16"
     snap = snapshot(as_of, store, UNIVERSE)
-    assert snap["AAA"]["last_price_date"] == as_of  # le prix du vendredi est bien connu
+    assert snap["AAA"]["last_price_date"] == as_of
     assert snapshot("2026-10-15", store, UNIVERSE)["AAA"]["last_price_date"] == "2026-10-15"
 
 
@@ -139,7 +126,7 @@ def test_news_cutoff_is_midnight_new_york(store):
 
 def test_macro_is_only_visible_once_published(store):
     cpi = store.macro["CPIAUCSL"]
-    last_obs = cpi.sort_values("available_from").iloc[-2]  # une observation récente, hors révision
+    last_obs = cpi.sort_values("available_from").iloc[-2]
     day_before = (last_obs["available_from"] - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     day_of = last_obs["available_from"].strftime("%Y-%m-%d")
 
@@ -151,14 +138,13 @@ def test_macro_is_only_visible_once_published(store):
 
 def test_macro_revision_is_used_only_after_its_release(store):
     cpi = store.macro["CPIAUCSL"]
-    revised_date = cpi.sort_values("available_from").iloc[:-1]
     dup = cpi[cpi.duplicated("date", keep=False)].sort_values("available_from")
     first, second = dup.iloc[0], dup.iloc[1]
     assert second["value"] != first["value"]
 
     store_view = store.truncated((second["available_from"] - pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
     v = store_view.macro["CPIAUCSL"].set_index("date").loc[first["date"], "value"]
-    assert v == first["value"]  # ancienne version tant que la révision n'est pas publiée
+    assert v == first["value"]
 
     store_view = store.truncated(second["available_from"].strftime("%Y-%m-%d"))
     v = store_view.macro["CPIAUCSL"].set_index("date").loc[first["date"], "value"]
@@ -173,9 +159,6 @@ def test_incomplete_week_is_not_labelled_with_a_future_friday(store):
     assert weekly.index[-1] == pd.Timestamp(wednesday)
 
 
-# --------------------------------------------------------------------------- #
-# Reproductibilité, réseau, taille, cas limites
-# --------------------------------------------------------------------------- #
 def test_same_date_same_snapshot(store):
     a = snapshot("2026-10-16", store, UNIVERSE)
     b = snapshot("2026-10-16", store, UNIVERSE)
@@ -208,7 +191,7 @@ def test_short_history_gives_none_not_an_invented_number(store):
 
 
 def test_indicators_on_known_series():
-    close = pd.Series(np.arange(1, 61, dtype=float))  # tendance haussière parfaite
+    close = pd.Series(np.arange(1, 61, dtype=float))
     ind = compute_indicators(close)
     assert ind["rsi14w"] == 100.0
     assert ind["drawdown_vs_plus_haut_pct"] == 0.0
