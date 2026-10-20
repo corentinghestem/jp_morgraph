@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": { 
+    "technical": "./src/jp_morgraph/agents/technical.py:graph"
+  },
+  "env": ".env"
+}
