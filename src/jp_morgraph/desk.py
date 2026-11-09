@@ -59,6 +59,13 @@ def valued(cash: float, positions: dict[str, int], prices: dict[str, float]) -> 
     return {"cash": round(cash, 2), "positions": positions, "nav": round(nav, 2)}
 
 
+def revalue(portfolio: dict, prices: dict[str, float]) -> dict:
+    positions = portfolio.get("positions", {})
+    if any(not prices.get(t) for t in positions):
+        return portfolio
+    return valued(portfolio["cash"], dict(positions), prices)
+
+
 def project(orders: list[OrderProposal], portfolio: dict, prices: dict[str, float]) -> dict:
     cash = portfolio["cash"]
     positions = dict(portfolio.get("positions", {}))

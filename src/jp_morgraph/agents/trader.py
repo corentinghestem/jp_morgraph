@@ -5,7 +5,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL
+from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL, TIMEOUT
 from jp_morgraph.agents.debate import format_debate, format_reports
 from jp_morgraph.desk import initial_portfolio, sized
 from jp_morgraph.state import OrderProposal
@@ -33,6 +33,7 @@ Règles :
 - Ne donne aucune quantité : le code la calcule (poids cible = conviction x 40 % du portefeuille).
 - Limites vérifiées par le code : 40 % maximum par titre, exposition totale <= 100 %,
   cash jamais négatif. Au-delà, tes ordres seront refusés.
+- Ne calcule ni poids, ni pourcentage, ni exposition : c'est le travail du code.
 - Appuie-toi uniquement sur les rapports{and_debate}. N'invente aucun chiffre.
 - Dans rationale, 2 phrases maximum : cite tes sources avec leurs étiquettes,
   par exemple [AAPL/technique] ou « Bear ».
@@ -82,13 +83,19 @@ def refusal_section(state: dict) -> str:
     )
 
 
+TRADER_MODEL = MODEL
 _llm = None
+
+
+def use_model(model: str) -> None:
+    global TRADER_MODEL, _llm
+    TRADER_MODEL, _llm = model, None
 
 
 def get_structured_llm():
     global _llm
     if _llm is None:
-        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS)
+        _llm = init_chat_model(TRADER_MODEL, effort=EFFORT, max_tokens=MAX_TOKENS, timeout=TIMEOUT)
     return _llm.with_structured_output(TraderDecision)
 
 

@@ -1,6 +1,9 @@
+from langchain_core.exceptions import OutputParserException
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import RetryPolicy
+from pydantic import ValidationError
 
 from jp_morgraph.agents.analysts import analyst, route_to_analysts
 from jp_morgraph.agents.debate import bear, bull
@@ -8,7 +11,13 @@ from jp_morgraph.agents.risk_manager import risk_check
 from jp_morgraph.agents.trader import trader
 from jp_morgraph.config import MAX_RISK_RETRIES
 from jp_morgraph.data import MarketStore, next_open
-from jp_morgraph.desk import active, append_journal, execute_orders
+from jp_morgraph.desk import (
+    active,
+    append_journal,
+    execute_orders,
+    mark_prices,
+    revalue,
+)
 from jp_morgraph.manager import pm_approval
 from jp_morgraph.phase4_graph import DATA_DIR
 from jp_morgraph.phase5_graph import load_market as load_market_and_portfolio
@@ -16,12 +25,19 @@ from jp_morgraph.state import AnalystReport, DeskState, OrderProposal, RiskVerdi
 
 JOURNAL_PATH = DATA_DIR / "journal.jsonl"
 
+RETRY = RetryPolicy(max_attempts=3, initial_interval=0.1, jitter=False,
+                    retry_on=(ValidationError, OutputParserException, RuntimeError))
+
 SERDE = JsonPlusSerializer(allowed_msgpack_modules=[
     (cls.__module__, cls.__name__) for cls in (AnalystReport, OrderProposal, RiskVerdict)])
 
 
 def load_market(state: dict) -> dict:
-    return {**load_market_and_portfolio(state), "risk_retries": 0}
+    out = {**load_market_and_portfolio(state), "risk_retries": 0}
+    snapshot = out.get("snapshot") or state["snapshot"]
+    portfolio = out.get("portfolio") or state["portfolio"]
+    out["portfolio"] = revalue(portfolio, mark_prices(snapshot))
+    return out
 
 
 def risk_route(state: dict) -> str:
@@ -76,17 +92,17 @@ def book(state: dict, config: RunnableConfig) -> dict:
     return {}
 
 
-def build_graph(max_rounds: int = 1, checkpointer=None):
+def build_graph(max_rounds: int = 1, checkpointer=None, interrupt_before=None):
     def debate_route(state: dict) -> str:
         return "bull" if state.get("debate_round", 0) < max_rounds else "trader"
 
     b = StateGraph(DeskState)
     b.add_node("load_market", load_market)
-    b.add_node("analyst", analyst)
-    b.add_node("bull", bull)
-    b.add_node("bear", bear)
-    b.add_node("trader", trader)
-    b.add_node("risk", risk_check)
+    b.add_node("analyst", analyst, retry_policy=RETRY)
+    b.add_node("bull", bull, retry_policy=RETRY)
+    b.add_node("bear", bear, retry_policy=RETRY)
+    b.add_node("trader", trader, retry_policy=RETRY)
+    b.add_node("risk", risk_check, retry_policy=RETRY)
     b.add_node("pm_approval", pm_approval)
     b.add_node("execute", execute)
     b.add_node("book", book)
@@ -101,7 +117,7 @@ def build_graph(max_rounds: int = 1, checkpointer=None):
     b.add_edge("pm_approval", "execute")
     b.add_edge("execute", "book")
     b.add_edge("book", END)
-    return b.compile(checkpointer=checkpointer)
+    return b.compile(checkpointer=checkpointer, interrupt_before=interrupt_before)
 
 
 graph = build_graph()

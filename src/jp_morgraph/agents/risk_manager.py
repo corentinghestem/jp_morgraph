@@ -3,7 +3,7 @@ import json
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import RunnableConfig
 
-from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL
+from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL, TIMEOUT
 from jp_morgraph.agents.debate import text_of
 from jp_morgraph.desk import check_orders, mark_prices
 from jp_morgraph.state import OrderProposal, RiskVerdict
@@ -51,7 +51,7 @@ _llm = None
 def get_llm():
     global _llm
     if _llm is None:
-        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS)
+        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS, timeout=TIMEOUT)
     return _llm
 
 

@@ -1,7 +1,7 @@
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import RunnableConfig
 
-from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL
+from jp_morgraph.agents.analysts import EFFORT, MAX_TOKENS, MODEL, TIMEOUT
 from jp_morgraph.state import AnalystReport
 
 
@@ -58,7 +58,7 @@ _llm = None
 def get_llm():
     global _llm
     if _llm is None:
-        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS,
+        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
                                thinking={"type": "disabled"})
     return _llm
 

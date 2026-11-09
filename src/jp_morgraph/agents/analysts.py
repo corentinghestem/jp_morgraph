@@ -13,6 +13,7 @@ KINDS = ("technique", "news_macro")
 MODEL = "anthropic:claude-haiku-5-5"
 EFFORT = "low"
 MAX_TOKENS = 4000
+TIMEOUT = 120
 
 
 class AnalystTask(TypedDict):
@@ -66,7 +67,7 @@ _llm = None
 def get_structured_llm():
     global _llm
     if _llm is None:
-        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS)
+        _llm = init_chat_model(MODEL, effort=EFFORT, max_tokens=MAX_TOKENS, timeout=TIMEOUT)
     return _llm.with_structured_output(AnalystReport)
 
 

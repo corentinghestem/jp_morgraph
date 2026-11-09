@@ -65,3 +65,27 @@ def pm_approval(state: dict) -> dict:
             return {"approved_orders": approved}
         payload = {**payload,
                    "erreur": "Correction refusée par les règles de risque : " + " ; ".join(breaches)}
+
+
+def ask_in_terminal(payload: dict):
+    print(f"\nOrdres du {payload['as_of']} :")
+    for o in payload["ordres"]:
+        print(f"  {o['ticker']:5} {o['side']:4} conviction={o['conviction']:.2f} "
+              f"quantité={o['quantity']:>6}  | {o['rationale']}")
+    print(f"  Risque : {payload['avis_risque']}")
+    if "erreur" in payload:
+        print(f"  Erreur : {payload['erreur']}")
+    answer = input("Valider ? [o / n / AAPL=50 / JPM:hold] > ").strip()
+    if answer.lower() in ("", "o", "oui", "y"):
+        return True
+    if answer.lower() in ("n", "non"):
+        return False
+    decision = {"quantities": {}, "sides": {}}
+    for token in answer.split():
+        if "=" in token:
+            t, q = token.split("=", 1)
+            decision["quantities"][t.upper()] = int(q) if q.isdigit() else q
+        elif ":" in token:
+            t, s = token.split(":", 1)
+            decision["sides"][t.upper()] = s.lower()
+    return decision
